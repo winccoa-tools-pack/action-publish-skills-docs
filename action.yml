@@ -1,0 +1,76 @@
+name: 'Publish APM Skills Docs'
+description: >
+  Converts APM SKILL.md files into Docusaurus documentation and publishes them
+  to a target repository (e.g. a GitHub Pages site).
+
+inputs:
+  skills_dir:
+    description: 'Path to the .apm/skills directory inside the calling repository'
+    default: '.apm/skills'
+  target_repo:
+    description: 'Target repository in owner/repo format (e.g. winccoa-tools-pack/winccoa-tools-pack.github.io)'
+    required: true
+  target_docs_path:
+    description: 'Path within the target repo where docs are written (e.g. docs/skills/org)'
+    required: true
+  section_title:
+    description: 'Human-readable section title shown in the Docusaurus sidebar'
+    required: true
+  section_position:
+    description: 'Numeric sidebar position for this section category'
+    default: '10'
+  commit_message:
+    description: 'Git commit message used when updating the target repo'
+    default: 'chore(docs): update skills documentation [skip ci]'
+  github_token:
+    description: 'Personal access token with write access to target_repo'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Convert SKILL.md files to Docusaurus format
+      shell: bash
+      run: node "${{ github.action_path }}/scripts/prepare-docs.js"
+      env:
+        SKILLS_DIR: ${{ inputs.skills_dir }}
+        OUTPUT_DIR: ${{ runner.temp }}/skills-docs-output
+        SECTION_TITLE: ${{ inputs.section_title }}
+        SECTION_POSITION: ${{ inputs.section_position }}
+
+    - name: Checkout target repository
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.target_repo }}
+        token: ${{ inputs.github_token }}
+        path: _target_docs_repo
+
+    - name: Copy generated docs into target repository
+      shell: bash
+      run: |
+        TARGET="_target_docs_repo/${{ inputs.target_docs_path }}"
+        rm -rf "$TARGET"
+        mkdir -p "$TARGET"
+        cp -r "${{ runner.temp }}/skills-docs-output/." "$TARGET/"
+        echo "Copied docs to $TARGET"
+        ls -la "$TARGET"
+
+    - name: Commit and push to target repository
+      shell: bash
+      run: |
+        cd _target_docs_repo
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add "${{ inputs.target_docs_path }}"
+        if git diff --staged --quiet; then
+          echo "No changes to commit — docs are already up to date."
+        else
+          git commit -m "${{ inputs.commit_message }}"
+          git push
+          echo "Docs published successfully."
+        fi
