@@ -56,6 +56,21 @@ fs.writeFileSync(
   JSON.stringify({ label: sectionTitle, position: sectionPosition }, null, 2) + '\n'
 );
 
+// Write a minimal index.md so the section URL always resolves.
+const indexContent = [
+  '---',
+  `title: "${escYaml(sectionTitle)}"`,
+  `sidebar_label: "${escYaml(sectionTitle)}"`,
+  `sidebar_position: 1`,
+  '---',
+  '',
+  `# ${sectionTitle}`,
+  '',
+  'Browse the available skills in the sidebar.',
+  '',
+].join('\n');
+fs.writeFileSync(path.join(outputDir, 'index.md'), indexContent);
+
 if (!fs.existsSync(skillsDir)) {
   console.warn(`Skills directory not found: ${skillsDir}`);
   process.exit(0);
